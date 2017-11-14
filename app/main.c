@@ -79,14 +79,8 @@ void *send_thread(void *arg)
         pthread_mutex_lock(&mutex);
         pthread_cond_wait(&cond,&mutex);
         printf("send_thread applied the condition\n");
-		
-		ret = send_msg_once(sockfd, &defaultConfig);
-		if (ret < 0) 
-		{
-			LOG_ERROR("send_msg_once: send msg failed");
-			close(sockfd);
-			return EXIT_FAILURE;
-		}
+		char testmsg[20] = "hello kernel!";
+		ret = send_msg_once(sockfd, &testmsg, sizeof(testmsg));
 		if (ret < 0) 
 		{
 			LOG_ERROR("send_msg_once: send msg failed");
@@ -166,14 +160,14 @@ void *rcv_thread(void *arg)
 }
 
 
-int send_msg_once(int sockfd, struct config *str)
+int send_msg_once(int sockfd, void *str, int str_len)
 {
 	struct sockaddr_nl nladdr;
 	struct msghdr msg;
 	struct iovec iov;
 	struct nlmsghdr *nlh;
 	int ret;
-	int len = sizeof(*str);
+	int len = str_len;
 	nlh = calloc(1, NLMSG_SPACE(len));
 	if (!nlh) 
 	{
@@ -250,13 +244,14 @@ int main()
 {
 	int ret;
 	char buf[BUF_SIZE];
+	char testmsg[20] = "hello kernel!";
 	sockfd = init_netlink_socket(NETLINK_TEST);
 	if (sockfd < 0) 
 	{
 		LOG_ERROR("init_netlink_socket: couldn't init netlink socket");
 		return EXIT_FAILURE;
 	}
-	ret = send_msg_once(sockfd, &defaultConfig);
+	ret = send_msg_once(sockfd, &testmsg, sizeof(testmsg));
 	if (ret < 0) 
 	{
 		LOG_ERROR("send_msg_once: send msg failed");
@@ -267,9 +262,9 @@ int main()
 	if (!nlh) 
 	{
 		LOG_ERROR("calloc: alloc nlmsghdr error");
-		return EXIT_FAILURE;
+		return -1;
 	}
-	ret = test_reset_msg();
+	test_reset_msg();
 	ret = test_recv_msg(sockfd, buf, sizeof(buf));
 	if (ret < 0) 
 	{
@@ -278,7 +273,7 @@ int main()
 		return EXIT_FAILURE;
 	}
 	LOG_INFO("receive from kernel: %s", buf);
-	pthread_t thid1,thid2,thid3;
+	pthread_t thid1,thid3;
     printf("condition variable study!\n");
     pthread_mutex_init(&mutex,NULL);
     pthread_cond_init(&cond,NULL);

@@ -1,17 +1,13 @@
 CC = gcc
-CFLAGS = -Wextra -Wall -g -O0 -DDEBUG
+CFLAGS = -Wextra -Wall -g -O0 -DDEBUG -lpthread
 
 SOURCES = main.c
 BIN_NAME = mynetlink
-TARGET = ../$(BIN_NAME)
 
-all: $(TARGET)
-
-$(TARGET): $(BIN_NAME)
-	cp $< $@
+all: $(BIN_NAME)
 
 $(BIN_NAME): $(SOURCES)
 	$(CC) $(CFLAGS) $^ -o $@
-
+	cp $(BIN_NAME) ../$(BIN_NAME)
 clean:
-	rm -f $(BIN_NAME) $(TARGET)
+	rm -rf $(BIN_NAME) ../$(BIN_NAME)

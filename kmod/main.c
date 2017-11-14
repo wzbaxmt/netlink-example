@@ -2,8 +2,13 @@
 #include <net/sock.h>
 #include <net/netlink.h>
 #include <linux/ctype.h>
+#include <linux/kthread.h>
 
 #define NETLINK_TEST 17
+
+static struct task_struct *t1;
+
+int PID = 0;
 
 /* The netlink socket. */
 static struct sock *test_nl_sock;
@@ -51,12 +56,11 @@ static void dump_nlmsg(struct nlmsghdr *nlh)
 	printk(KERN_DEBUG "===============DEBUG END===============\n");
 }
 
-static int send_msg_to_user(struct sk_buff *in_skb, int pid)
+static int send_msg_to_user(int pid, void* str, int str_len)
 {
 	struct sk_buff *skb;
 	struct nlmsghdr *nlh;
-	const char *str = "I am message from kernel!";
-	int len = strlen(str) + 1;
+	int len = str_len + 1;
 
 	skb = nlmsg_new(len, GFP_KERNEL);
 	if (!skb) {
@@ -71,18 +75,23 @@ static int send_msg_to_user(struct sk_buff *in_skb, int pid)
 		return -EMSGSIZE;
 	}
 	memcpy(NLMSG_DATA(nlh), str, len);
-
-	/* debug info */
+	
 	dump_nlmsg(nlh);
 
 	return nlmsg_unicast(test_nl_sock, skb, pid);
 }
 
+
+
 static int netlink_rcv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
 	printk(KERN_INFO "receive from userspace: %s", (char *) NLMSG_DATA(nlh));
-
-	return send_msg_to_user(skb, nlh->nlmsg_pid);
+	if(nlh->nlmsg_pid != PID)
+		PID = nlh->nlmsg_pid;
+	char *str = "get string from userspace!";
+	int str_len = strlen(str);
+	send_msg_to_user(PID, str, str_len);
+	return 0;
 }
 
 /* Receive messages from netlink socket. */
@@ -117,6 +126,24 @@ static void test_nl_rcv_skb(struct sk_buff *skb)
 	}
 }
 
+
+static int t1_f(void *unused)
+{
+	while(!kthread_should_stop())
+	{
+		if(PID)
+		{
+			char *str = "hello userspace!";
+			int str_len = strlen(str);
+			send_msg_to_user(PID, str, str_len);
+		}
+		ssleep(1);
+	}
+	printk(KERN_ALERT "Stopping thread 1 ...\n");
+	//do_exit(0);//thread stop immediately
+	return 0;
+}
+
 static int __init test_nl_init(void)
 {
 	test_nl_sock = netlink_kernel_create(&init_net, NETLINK_TEST, 0,
@@ -125,7 +152,16 @@ static int __init test_nl_init(void)
 		printk(KERN_ERR "netlink_kernel_create: couldn't create a netlink sock\n");
 		return -ENOMEM;
 	}
-
+	t1 = kthread_create(t1_f,NULL,"mythread1");
+	if(t1)
+	{
+		printk(KERN_INFO "Thread Created Sucessfully\n");
+		wake_up_process(t1);
+	}
+	else
+	{
+		printk(KERN_ALERT "Thread Creation Failed\n");
+	}
 	printk(KERN_INFO "test netlink module init successful\n");
 
 	return 0;
@@ -133,8 +169,11 @@ static int __init test_nl_init(void)
 
 static void __exit test_nl_exit(void)
 {
+	int ret;
 	netlink_kernel_release(test_nl_sock);
-
+	ret = kthread_stop(t1);
+	if(!ret)
+		printk(KERN_ALERT "Thread stopped");
 	printk(KERN_INFO "test netlink module exit successful\n");
 }
 
