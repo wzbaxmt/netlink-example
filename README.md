@@ -1,7 +1,7 @@
 # netlink-example
-内核态与用户态交互信息，两边主动收发。
-
 kernel module(mynetlink.ko) communicate with the user-mode application(mynetlink), each process has two threads(send/recv);
+
+内核态与用户态交互信息，两边主动收发。
 
 
 Use step:
